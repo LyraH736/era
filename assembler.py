@@ -12,6 +12,7 @@ class Assembler:
         self.instAlign = target.INSTRUCTION_ALIGNMENT
         self.endianess = target.ENDIANESS
         self.pad_byte = target.PAD_BYTE
+        self.branches = target.BRANCHES
         self.registers = target.REGISTERS
         self.formats = target.FORMATS
         self.instructions = target.INSTRUCTIONS
@@ -22,6 +23,7 @@ class Assembler:
         
         # Initialize variables
         self.constants = {}
+        self.labels = {}
         self.verbose = verbose
         
     
@@ -76,6 +78,7 @@ class Assembler:
             if isinstance(instField[1],int):
                 selectedValue = instField[1]
             elif current_element >= max_elements:
+                print(line)
                 print(f"ERROR, line {lineNumber}: less arguments than required {current_element}, using default 0")
                 selectedValue = 0
             elif instField[1].upper() == 'REG':
@@ -135,16 +138,28 @@ class Assembler:
             
             # Label assignment
             if line[0][-1] == ":":
-                constantName = line[0][:-1]
-                if self.constants.get(constantName,None) != None and self.verbose:
-                    print(f"WARNING, line {lineNumber}: constant {constantName} already exists, overwriting")
-                self.constants[constantName] = memoryLength
+                labelName = line[0][:-1]
+                if self.labels.get(labelName,None) != None and self.verbose:
+                    print(f"WARNING, line {lineNumber}: label {labelName} already exists, overwriting")
+                self.labels[labelName] = memoryLength
                 continue
             
-            # Convert constant to integer
+            # Convert constant&labels to integer
             for originalValue in range(1,len(line)):
                 if line[originalValue] in self.constants:
                     line[originalValue] = self.constants[line[originalValue]]
+                
+                if line[originalValue] in self.labels:
+                    if line[0] in self.branches:
+                        instLength = self.formats[self.instructions[line[0]]][0]//8
+                        alignment = self.branches[line[0]]
+                        line[originalValue] = (
+                            (self.labels[line[originalValue]] >> alignment)
+                            -((memoryLength >> alignment)
+                            +instLength))
+                    else:
+                        line[originalValue] = (
+                            self.labels[line[originalValue]]-memoryLength)
             
             # Instruction alignment, in case the current instruction is misaligned
             if line[0] in self.instructions and self.instAlign:

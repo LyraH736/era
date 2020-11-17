@@ -9,7 +9,7 @@ Designed for maximum compatability with different architectures, allowing the us
 
 * Comments
 * Constants
-* TODO - Labels
+* Labels
 * TODO - Support for binary, octal, hexadecimal, and negative decimal numbers
 * TODO - String support
 * TODO - Error reporting
