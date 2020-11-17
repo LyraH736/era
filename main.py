@@ -20,17 +20,17 @@ def main():
     if args.target:
         target = __import__(args.target)
     else:
-        target = __import__('mips_i')
+        target = __import__('target0')
     
     # Import assembly file
     with open(args.input,'r') as asmfile:
         asmLines = asmfile.readlines()
     
     # Initialize 
-    asm_object = assembler(asmLines,target)
+    asm_object = assembler.Assembler(asmLines,target,args.verbose)
     
     # Assemble and convert to a binary object
-    memoryArray = bytes(asm_object.assemble(args.verbose))
+    memoryArray = bytes(asm_object.assemble())
         
     # Assembled file writer
     outname = args.output if args.output else 'a.out'

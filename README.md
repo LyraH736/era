@@ -7,8 +7,8 @@ Designed for maximum compatability with different architectures, allowing the us
 
 # Features
 
-* TODO - Comments
-* TODO - Constants
+* Comments
+* Constants
 * TODO - Labels
 * TODO - Support for binary, octal, hexadecimal, and negative decimal numbers
 * TODO - String support
@@ -16,7 +16,6 @@ Designed for maximum compatability with different architectures, allowing the us
 * TODO - Misspelling suggestions
 * TODO - Pseudo-instruction support
 * TODO - Macro support
-* TODO - Disassembler
 
 
 # Goals
