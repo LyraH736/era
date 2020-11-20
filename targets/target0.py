@@ -1,14 +1,14 @@
 # a simple unnamed architecture, mainly for testing the assembler
-ISA_FEATURES = ('COND')
+ISA_FEATURES = ('LITTLE','COND','JUMP_REL','JUMP_NPC')
 ADDRESS_WIDTH = 16
 DATA_WIDTH = 8
 INSTRUCTION_ALIGNMENT = 0
 ENDIANESS = 0 # Little Endian
 PAD_BYTE = 0x00 # Prefered Byte to pad with
-BRANCHES = {
-    'bc':   0,
-    'bcl':  0,
-    } # (instruction,alignment)
+JUMP_REL = (
+    'bc',
+    'bcl',
+    )
 
 REGISTERS = {
     'ar':   0,
@@ -111,22 +111,22 @@ INSTRUCTIONS = {
         ('opcode',0b0000),
         ('function',0b111)),
     # register stuff
-    'not':  (
+    'notb':  (
         '1b',
         ('size',0),
         ('opcode',0b0010),
         ('function','REG')),
-    'neg':  (
+    'negb':  (
         '1b',
         ('size',0),
         ('opcode',0b0011),
         ('function','REG')),
-    'inc':  (
+    'incb':  (
         '1b',
         ('size',0),
         ('opcode',0b0100),
         ('function','REG')),
-    'dec':  (
+    'decb':  (
         '1b',
         ('size',0),
         ('opcode',0b0101),
@@ -151,12 +151,12 @@ INSTRUCTIONS = {
         ('size',0),
         ('opcode',0b1001),
         ('function','REG')),
-    'jr':  (
+    'jrb':  (
         '1b',
         ('size',0),
         ('opcode',0b1010),
         ('function','REG')),
-    'jrl':  (
+    'jrlb':  (
         '1b',
         ('size',0),
         ('opcode',0b1011),
@@ -172,242 +172,248 @@ INSTRUCTIONS = {
         ('opcode',0b1101),
         ('function','REG')),
     # 2 Byte instructions
-    '2and':  (
+    'and':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b00000000),
         ('dest','REG'),
         ('source','REG')),
-    '2bic':  (
+    'bic':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b10000000),
         ('dest','REG'),
         ('source','REG')),
-    '2or':  (
+    'or':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b01000000),
         ('dest','REG'),
         ('source','REG')),
-    '2xor':  (
+    'xor':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b11000000),
         ('dest','REG'),
         ('source','REG')),
-    '2nor':  (
+    'nor':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b00100000),
         ('dest','REG'),
         ('source','REG')),
-    '2not':  (
+    'not':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b10100000),
         ('dest','REG'),
         ('source','REG')),
-    '2sll':  (
+    'sll':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b01100000),
         ('dest','REG'),
         ('source','REG')),
-    '2srl':  (
+    'srl':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b11100000),
         ('dest','REG'),
         ('source','REG')),
-    '2sra':  (
+    'sra':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b00010000),
         ('dest','REG'),
         ('source','REG')),
-    '2add':  (
+    'add':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b10010000),
         ('dest','REG'),
         ('source','REG')),
-    '2sub':  (
+    'sub':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b01010000),
         ('dest','REG'),
         ('source','REG')),
-    '2adc':  (
+    'adc':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b11010000),
         ('dest','REG'),
         ('source','REG')),
-    '2sbb':  (
+    'sbb':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b00110000),
         ('dest','REG'),
         ('source','REG')),
-    '2inc':  (
+    'inc':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b10110000),
         ('dest','REG'),
         ('source','REG')),
-    '2dec':  (
+    'dec':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b01110000),
         ('dest','REG'),
         ('source','REG')),
-    '2neg':  (
+    'neg':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b11110000),
         ('dest','REG'),
         ('source','REG')),
-    '2mov':  (
+    'mov':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b00001000),
         ('dest','REG'),
         ('source','REG')),
-    '2cmp':  (
+    'cmp':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b10001000),
         ('dest','REG'),
         ('source','REG')),
-    '2cmn':  (
+    'cmn':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b01001000),
         ('dest','REG'),
         ('source','REG')),
-    '2cma':  (
+    'cma':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b11001000),
         ('dest','REG'),
         ('source','REG')),
-    '2cmx':  (
+    'cmx':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b00101000),
         ('dest','REG'),
         ('source','REG')),
-    '2lb':  (
+    'lb':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b10101000),
         ('dest','REG'),
         ('source','REG')),
-    '2sb':  (
+    'sb':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b01101000),
         ('dest','REG'),
         ('source','REG')),
-    '2slli':  (
+    'orn':  (
+        '2b0',
+        ('size',0b01),
+        ('opcode',0b11101000),
+        ('dest','REG'),
+        ('source','REG')),
+    'slli':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b00011000),
         ('dest','REG'),
         ('source','NUM')),
-    '2srli':  (
+    'srli':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b10011000),
         ('dest','REG'),
         ('source','NUM')),
-    '2srai':  (
+    'srai':  (
         '2b0',
         ('size',0b01),
         ('opcode',0b01011000),
         ('dest','REG'),
         ('source','NUM')),
     # Immediate/offset land
-    '2andi':  (
+    'andi':  (
         '2b1',
         ('size',0b01),
         ('opcode',0b0000100),
         ('dest','REG'),
         ('imm','NUM')),
-    '2xori':  (
+    'xori':  (
         '2b1',
         ('size',0b01),
         ('opcode',0b1000100),
         ('dest','REG'),
         ('imm','NUM')),
-    '2ori':  (
+    'ori':  (
         '2b1',
         ('size',0b01),
         ('opcode',0b0100100),
         ('dest','REG'),
         ('imm','NUM')),
-    '2addi':  (
+    'addi':  (
         '2b1',
         ('size',0b01),
         ('opcode',0b1100100),
         ('dest','REG'),
         ('imm','NUM')),
-    '2cmpi':  (
+    'cmpi':  (
         '2b1',
         ('size',0b01),
         ('opcode',0b0010100),
         ('dest','REG'),
         ('imm','NUM')),
-    '2lbsp':  (
+    'lbsp':  (
         '2b1',
         ('size',0b01),
         ('opcode',0b1010100),
         ('dest','REG'),
         ('imm','NUM')),
-    '2sbsp':  (
+    'sbsp':  (
         '2b1',
         ('size',0b01),
         ('opcode',0b0110100),
         ('dest','REG'),
         ('imm','NUM')),
-    '2jr':  (
+    'jr':  (
         '2b2',
         ('size',0b01),
         ('opcode',0b01100),
         ('dest','REG'),
         ('imm','NUM')),
-    '2jrl':  (
+    'jrl':  (
         '2b2',
         ('size',0b01),
         ('opcode',0b11100),
         ('dest','REG'),
         ('imm','NUM')),
-    '2lcsr':  (
+    'lcsr':  (
         '2b3',
         ('size',0b01),
         ('opcode',0b010),
         ('dest','REG'),
         ('imm','REG')),
-    '2scsr':  (
+    'scsr':  (
         '2b3',
         ('size',0b01),
         ('opcode',0b110),
         ('dest','REG'),
         ('imm','REG')),
-    '2bc':  (
+    'bc':  (
         '2b3',
         ('size',0b01),
         ('opcode',0b001),
         ('dest','COND'),
         ('imm','NUM')),
-    '2bcl':  (
+    'bcl':  (
         '2b3',
         ('size',0b01),
         ('opcode',0b101),
         ('dest','COND'),
         ('imm','NUM')),
-    '2li':  (
+    'li':  (
         '2b3',
         ('size',0b01),
         ('opcode',0b011),
