@@ -78,7 +78,7 @@ class Assembler:
             # Increment the line
             lineNumber += 1
             # Remove comments
-            uncommented = re.sub('#.*','',line)
+            uncommented = re.sub('//.*','',line)
             # Remove empty lines
             if not uncommented or uncommented.isspace():
                 continue
@@ -207,6 +207,10 @@ class Assembler:
                 padAmount = -(padAmount-alignPower) if padAmount else 0
                 currentProgress += padAmount
             
+            if line[0] not in ('.const','.align','.byte','.half','.word'):
+                for originalValue in range(1,len(line)):
+                    self.labelConstConvert(originalValue,line,currentProgress)
+            
             # Categorize operands for easy identification
             categorizedLine = self.categorizeOperands(line)
             
@@ -227,6 +231,7 @@ class Assembler:
             # Align and pad by a power of two using a provided byte
             elif line[0] == ".align":
                 try:
+                    self.labelConstConvert(1,line,currentProgress)
                     is_imm = line[1].startswith('#')
                     alignPower = 2**int(line[1][is_imm:])
                 except:
@@ -243,6 +248,7 @@ class Assembler:
                     delList.append(lineNumber)
                 else:
                     try:
+                        self.labelConstConvert(2,line,currentProgress)
                         is_imm = line[2].startswith('#')
                         self.constants[line[1]] = int(line[2][is_imm:])
                     except:
@@ -262,6 +268,7 @@ class Assembler:
             
             # last resort
             elif self.verbose:
+                print(categorizedLine,line)
                 print(ERRORS[8].format(lineNumber))
                 delList.append(lineNumber)
         
