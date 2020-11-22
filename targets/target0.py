@@ -1,9 +1,6 @@
 # a simple unnamed architecture, mainly for testing the assembler
-ISA_FEATURES = ('LITTLE','COND','JUMP_REL','JUMP_NPC')
-ADDRESS_WIDTH = 16
-DATA_WIDTH = 8
+ISA_FEATURES = ('LITTLE','REGS','COND','JUMP_REL','JUMP_NPC')
 INSTRUCTION_ALIGNMENT = 0
-ENDIANESS = 0 # Little Endian
 PAD_BYTE = 0x00 # Prefered Byte to pad with
 JUMP_REL = (
     'bc',

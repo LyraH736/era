@@ -24,11 +24,11 @@ class Assembler:
         # Load target definitions
         self.instAlign = target.INSTRUCTION_ALIGNMENT
         self.pad_byte = target.PAD_BYTE
-        self.registers = target.REGISTERS
         self.formats = target.FORMATS
         self.instructions = target.INSTRUCTIONS
         # Default variables
         self.big_endian = False
+        self.registers = {}
         self.conditions = {}
         self.jump_rel = ()
         self.jump_abs = ()
@@ -36,6 +36,8 @@ class Assembler:
         # Import optional overrides
         if "BIG" in target.ISA_FEATURES:
             self.big_endian = 1
+        if "REGS" in target.ISA_FEATURES:
+            self.registers = target.REGISTERS
         if "COND" in target.ISA_FEATURES:
             self.conditions = target.CONDITIONS
         if "JUMP_REL" in target.ISA_FEATURES:
@@ -287,7 +289,7 @@ class Assembler:
                 instLength = self.formats[self.instructions[line[0]][0]][0]//8
                 line[originalValue] = '#'+str(
                     self.labels[line[originalValue]]
-                    -(memoryLength+instLength*self.jump_abs))
+                    -(memoryLength+instLength*self.jump_abs*self.jump_npc))
             # Absolute labels
             elif line[0] in self.jump_abs:
                 line[originalValue] = '#'+str(self.labels[line[originalValue]])
