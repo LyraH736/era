@@ -142,8 +142,8 @@ class Assembler:
                     selectedValue = 0
             # Detect numbers
             elif inputType.startswith('NUM'):
-                if line[current_element][1:].isdigit() and line[current_element][0] == '#':
-                    selectedValue = int(line[current_element][1:])
+                if line[current_element].isdigit():
+                    selectedValue = int(line[current_element])
                     # Shift the inputs if needed
                     if inputType.endswith('r'):
                         selectedValue = selectedValue >> instField[2]
@@ -195,12 +195,10 @@ class Assembler:
             line = self.cleanLine(self.assembly[lineNumber])
             
             for num in range(0,len(line)):
-                is_imm = line[num].startswith('#')
                 # Convert hex/octal/binary numbers
-                if any(line[num][is_imm:].startswith(hob) for hob in nums):
+                if any(line[num].startswith(hob) for hob in nums):
                     self.assembly[lineNumber] = self.assembly[lineNumber].replace(
-                        line[num],('#'*is_imm)+str(int(
-                        line[num][2+is_imm:],nums[line[num][is_imm:2+is_imm]])))
+                        line[num],str(int(line[num][2:],nums[line[num][:2]])))
             
             # Instruction alignment, in case the current instruction is misaligned
             if line[0] in self.instructions and self.instAlign:
@@ -234,8 +232,7 @@ class Assembler:
             elif line[0] == ".align":
                 try:
                     self.labelConstConvert(1,line,currentProgress)
-                    is_imm = line[1].startswith('#')
-                    alignPower = 2**int(line[1][is_imm:])
+                    alignPower = 2**int(line[1])
                 except:
                     print(ERRORS[3].format(lineNumber))
                 else:
@@ -251,8 +248,7 @@ class Assembler:
                 else:
                     try:
                         self.labelConstConvert(2,line,currentProgress)
-                        is_imm = line[2].startswith('#')
-                        self.constants[line[1]] = int(line[2][is_imm:])
+                        self.constants[line[1]] = int(line[2])
                     except:
                         print(ERRORS[3].format(lineNumber))
             
@@ -281,21 +277,21 @@ class Assembler:
     def labelConstConvert(self,originalValue,line,memoryLength):
         """Convert constants&labels to integers"""
         if line[originalValue] in self.constants:
-            line[originalValue] = '#'+str(self.constants[line[originalValue]])
+            line[originalValue] = str(self.constants[line[originalValue]])
         
         elif line[originalValue] in self.labels:
             # NPC-relative labels
             if line[0] in self.jump_rel:
                 instLength = self.formats[self.instructions[line[0]][0]][0]//8
-                line[originalValue] = '#'+str(
+                line[originalValue] = str(
                     self.labels[line[originalValue]]
                     -(memoryLength+instLength*self.jump_abs*self.jump_npc))
             # Absolute labels
             elif line[0] in self.jump_abs:
-                line[originalValue] = '#'+str(self.labels[line[originalValue]])
+                line[originalValue] = str(self.labels[line[originalValue]])
             # PC-relative labels, as the default
             else:
-                line[originalValue] = '#'+str(self.labels[line[originalValue]]
+                line[originalValue] = str(self.labels[line[originalValue]]
                     -memoryLength)
     
     
@@ -307,7 +303,7 @@ class Assembler:
                 categorizedLine.append('COND')
             elif operand in self.registers.keys():
                 categorizedLine.append('REG')
-            elif operand[0] == '#':
+            elif operand[0].isdigit():
                 categorizedLine.append('NUM')
             else:
                 categorizedLine.append('_'+operand)
@@ -343,8 +339,7 @@ class Assembler:
             # Align and pad by a power of two using a provided byte
             if line[0] == ".align":
                 try:
-                    is_imm = line[1].startswith('#')
-                    alignPower = 2**int(line[1][is_imm:])
+                    alignPower = 2**int(line[1])
                 except:
                     print(ERRORS[3].format(lineNumber))
                 else:
@@ -355,24 +350,21 @@ class Assembler:
             # Constant assignment
             elif line[0] == '.const':
                 try:
-                    is_imm = line[2].startswith('#')
-                    self.constants[line[1]] = int(line[2][is_imm:])
+                    self.constants[line[1]] = int(line[2])
                 except:
                     print(ERRORS[3].format(lineNumber))
             
             # Inline bytes
             elif line[0] == '.byte':
                 try:
-                    is_imm = line[1].startswith('#')
-                    machine_code.append(self.twoComp(int(line[1][is_imm:]), 8) & 255)
+                    machine_code.append(self.twoComp(int(line[1]), 8) & 255)
                 except:
                     print(ERRORS[3].format(lineNumber))
             
             # Inline halfwords
             elif line[0] == '.half':
                 try:
-                    is_imm = line[1].startswith('#')
-                    halfword = self.twoComp(int(line[1][is_imm:]), 16)
+                    halfword = self.twoComp(int(line[1]), 16)
                 except:
                     print(ERRORS[3].format(lineNumber))
                 else:
@@ -383,8 +375,7 @@ class Assembler:
             # Inline words
             elif line[0] == '.word':
                 try:
-                    is_imm = line[1].startswith('#')
-                    word = self.twoComp(int(line[1][is_imm:]), 32)
+                    word = self.twoComp(int(line[1]), 32)
                 except:
                     print(ERRORS[3].format(lineNumber))
                 else:
