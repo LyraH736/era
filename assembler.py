@@ -49,6 +49,7 @@ class Assembler:
             
         
         # Initialize variables
+        self.links = []
         self.constants = {}
         self.labels = {}
         self.verbose = verbose
@@ -182,8 +183,7 @@ class Assembler:
     
     def cleanLine(self,line):
         """cleans the line and prepares it for easier reading"""
-        return(' '.join(
-            line.replace('=', ' ').replace(',', ' ').split()).split(' '))
+        return re.findall('[a-z]{1}[^,\s]*|(?<![a-z])[\d()]{1}[^,a-z]*',line.strip('\n'))
     
     
     def firstPass(self):
@@ -192,13 +192,21 @@ class Assembler:
         delList = []
         nums = {'0x':16,'0o':8,'0b':2}
         for lineNumber in self.assembly.keys():
-            line = self.cleanLine(self.assembly[lineNumber])
+            # Find hex/octal/binary numbers and convert them to decimal
+            # A non-math-hostile version that allows everything to be converted
+            # without spaces inbetweem every number
+            for number in re.findall(
+                '(?<!\w)(0x[0-9a-f]+|0o[0-7]+|0b[0-1]+)(?!\w)',
+                self.assembly[lineNumber]):
+                # Note: Couldn't figure out the regex for now as
+                # (?!\w)%s(?!\w) didn't work, thus labels and constants can't
+                # have a 0x/0o/0b sequence in the end of their names,
+                # otherwise they'll get mangled by this regex.
+                self.assembly[lineNumber] = re.sub('%s(?!\w)',
+                    str(int(number[2:],nums[number[:2]])),
+                    self.assembly[lineNumber])
             
-            for num in range(0,len(line)):
-                # Convert hex/octal/binary numbers
-                if any(line[num].startswith(hob) for hob in nums):
-                    self.assembly[lineNumber] = self.assembly[lineNumber].replace(
-                        line[num],str(int(line[num][2:],nums[line[num][:2]])))
+            line = self.cleanLine(self.assembly[lineNumber])
             
             # Instruction alignment, in case the current instruction is misaligned
             if line[0] in self.instructions and self.instAlign:
