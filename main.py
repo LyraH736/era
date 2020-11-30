@@ -29,9 +29,12 @@ def main():
     # Initialize 
     asm_object = assembler.Assembler(asmLines,target,args.verbose)
     
-    # First assembler pass
-    asm_object.firstPass()
-    
+    # Link identity pass
+    asm_object.linkIdentityPass()
+    # Second assembler pass
+    asm_object.secondPass()
+    # Link passes
+    asm_object.linkPasses()
     # Assemble and convert to a binary object
     memoryArray = bytes(asm_object.assemble())
         

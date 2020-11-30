@@ -9,7 +9,11 @@ ERRORS = {
     5:  "FATAL ERROR, line {}: invalid target formatting",
     6:  "WARNING, line {}: label {} already exists, ignoring",
     7:  "WARNING, line {}: constant {} already exists, ignoring",
-    8:  "WARNING, line {}: unknown instruction",
+    }
+
+ERROR_FATAL = {
+    0:  "FATAL ERROR, line{}: Invalid characters in constant/label name(allowed: a-z, 0-9, _)",
+    1:  "FATAL ERROR: Cannot find links, I give up.",
     }
 
 
@@ -28,6 +32,7 @@ class Assembler:
         self.instructions = target.INSTRUCTIONS
         # Default variables
         self.big_endian = False
+        self.forbid = ()
         self.registers = {}
         self.conditions = {}
         self.jump_rel = ()
@@ -36,14 +41,12 @@ class Assembler:
         # Import optional overrides
         if "BIG" in target.ISA_FEATURES:
             self.big_endian = 1
+        if "FORBID" in target.ISA_FEATURES:
+            self.forbid = target.FORBID
         if "REGS" in target.ISA_FEATURES:
             self.registers = target.REGISTERS
         if "COND" in target.ISA_FEATURES:
             self.conditions = target.CONDITIONS
-        if "JUMP_REL" in target.ISA_FEATURES:
-            self.jump_rel = target.JUMP_REL
-        if "JUMP_ABS" in target.ISA_FEATURES:
-            self.jump_abs = target.JUMP_ABS
         if "JUMP_NPC" in target.ISA_FEATURES:
             self.jump_npc = True
             
@@ -52,6 +55,8 @@ class Assembler:
         self.links = []
         self.constants = {}
         self.labels = {}
+        self.markedLines = {}
+        self.linePos = {}
         self.verbose = verbose
         
         if verbose:
@@ -80,8 +85,8 @@ class Assembler:
         for line in assembly:
             # Increment the line
             lineNumber += 1
-            # Remove comments
-            uncommented = re.sub('//.*','',line)
+            # Remove comments and newlines
+            uncommented = re.sub('//.*','',line).strip('\n')
             # Remove empty lines
             if not uncommented or uncommented.isspace():
                 continue
@@ -143,7 +148,7 @@ class Assembler:
                     selectedValue = 0
             # Detect numbers
             elif inputType.startswith('NUM'):
-                if line[current_element].isdigit():
+                if re.search('[\-]*\d+',line[current_element]):
                     selectedValue = int(line[current_element])
                     # Shift the inputs if needed
                     if inputType.endswith('r'):
@@ -183,82 +188,125 @@ class Assembler:
     
     def cleanLine(self,line):
         """cleans the line and prepares it for easier reading"""
-        return re.findall('[a-z]{1}[^,\s]*|(?<![a-z])[\d()]{1}[^,a-z]*',line.strip('\n'))
+        return re.findall(
+            '(?<![\w~%^&*()\-+<>/_!])[!]*<link_[a-z]{1}[\w_]*/>[:]*(?![\w~%^&*()\-+<>/_!])|(?<![<])[.]*[\d]*[-]*[\w]{1}[^,\s]*|(?<=[\s,])[!]*[\w()<]{1}[\w~%^&*()\-+<>/]*(?=[\s,])',
+            line)
     
     
-    def firstPass(self):
-        """First pass, finds labels, converts numbers, cleans code further"""
+    def linkIdentityPass(self):
+        """
+        Link Identity pass, finds labels and constants,
+        assigns them to temporary links which are easier to identify
+        """
+        for lineNumber in self.assembly.keys():
+            line = re.findall('[a-z]{1}[\w_:]*',self.assembly[lineNumber])
+            
+            # Label assignment
+            if line[0][-1] == ":":
+                if re.search('[^\w_]',line[0][:-1]):
+                    print(ERROR_FATAL[0].format(lineNumber))
+                else:
+                    linkName = '<link_'+line[0][:-1]+'/>'
+                    self.links.append(linkName)
+                    self.assembly[lineNumber] = linkName+':'
+            
+            # All other cases
+            for word in line[1:]:
+                forbidden = (word in self.conditions.keys()
+                    or word in self.registers.keys()
+                    or word in self.forbid)
+                if forbidden:
+                    continue
+                linkName = '<link_'+word+'/>'
+                self.links.append(linkName)
+                self.assembly[lineNumber] = re.sub(
+                    '(?<![\w_])%s(?![\w_])' % word, linkName,
+                    self.assembly[lineNumber])
+    
+    
+    def secondPass(self):
+        """
+        Second pass, finds labels, converts numbers, turns links into numbers,
+        marks empty links, cleans code further
+        """
+        pass_tainted = False
         currentProgress = 0
         delList = []
         nums = {'0x':16,'0o':8,'0b':2}
+        # Find labels, constant assignments, use temporary values if unavailable
         for lineNumber in self.assembly.keys():
+            markLine = False
             # Find hex/octal/binary numbers and convert them to decimal
             # A non-math-hostile version that allows everything to be converted
             # without spaces inbetweem every number
-            for number in re.findall(
-                '(?<!\w)(0x[0-9a-f]+|0o[0-7]+|0b[0-1]+)(?!\w)',
-                self.assembly[lineNumber]):
-                # Note: Couldn't figure out the regex for now as
-                # (?!\w)%s(?!\w) didn't work, thus labels and constants can't
-                # have a 0x/0o/0b sequence in the end of their names,
-                # otherwise they'll get mangled by this regex.
-                self.assembly[lineNumber] = re.sub('%s(?!\w)',
+            numberSet = set(re.findall(
+                '(?<![\w_])(0x[0-9a-f]+|0o[0-7]+|0b[0-1]+)(?![\w_])',
+                self.assembly[lineNumber]))
+            for number in numberSet:
+                self.assembly[lineNumber] = re.sub('(?<![\w_])%s(?![\w_])' % number,
                     str(int(number[2:],nums[number[:2]])),
                     self.assembly[lineNumber])
             
             line = self.cleanLine(self.assembly[lineNumber])
             
-            # Instruction alignment, in case the current instruction is misaligned
-            if line[0] in self.instructions and self.instAlign:
-                alignPower = 2**int(self.instAlign)
-                padAmount = (currentProgress % alignPower)
-                padAmount = -(padAmount-alignPower) if padAmount else 0
-                currentProgress += padAmount
-            
-            if line[0] not in ('.const','.align','.byte','.half','.word'):
-                for originalValue in range(1,len(line)):
-                    self.labelConstConvert(originalValue,line,currentProgress)
-            
-            # Categorize operands for easy identification
-            categorizedLine = self.categorizeOperands(line)
+            # Save position before any changes
+            self.linePos[lineNumber] = currentProgress
             
             # Label assignment
             if line[0][-1] == ":":
                 labelName = line[0][:-1]
-                if self.labels.get(labelName,None) != None and self.verbose:
-                    print(ERRORS[6].format(lineNumber,labelName))
+                if self.labels.get(labelName,None) != None:
                     delList.append(lineNumber)
-                else: self.labels[labelName] = currentProgress
-                continue
-            
-            elif categorizedLine in self.instructions:
-                instLength = self.formats[self.instructions[
-                    categorizedLine][0]][0]//8
-                currentProgress += instLength
-            
-            # Align and pad by a power of two using a provided byte
-            elif line[0] == ".align":
-                try:
-                    self.labelConstConvert(1,line,currentProgress)
-                    alignPower = 2**int(line[1])
-                except:
-                    print(ERRORS[3].format(lineNumber))
+                    print(ERRORS[6].format(lineNumber,labelName))
+                elif pass_tainted:
+                    markLine = True
                 else:
-                    padAmount = (currentProgress % alignPower)
-                    padAmount = -(padAmount-alignPower) if padAmount else 0
-                    currentProgress += padAmount
+                    self.labels[labelName] = currentProgress
+                    delList.append(lineNumber)
+                print(currentProgress)
+            
+            if line[0] == 'b.ne':
+                print(currentProgress)
             
             # Constant assignment
             elif line[0] == '.const':
-                if self.constants.get(line[1],None) != None and self.verbose:
+                if self.constants.get(line[1],None) != None:
+                    delList.append(lineNumber)
                     print(ERRORS[7].format(lineNumber,line[1]))
+                elif re.search('[\-]*\d+',line[2]):
+                    self.constants[line[1]] = int(line[2])
                     delList.append(lineNumber)
                 else:
-                    try:
-                        self.labelConstConvert(2,line,currentProgress)
-                        self.constants[line[1]] = int(line[2])
-                    except:
-                        print(ERRORS[3].format(lineNumber))
+                    markLine = True
+            
+            # Replace constants, absolute labels, and mark empty links
+            linkList = set(re.findall('[!]*<link_[a-z]{1}[\w_]*/>',self.assembly[lineNumber]))
+            for linkName in linkList:
+                absoluteLabel = linkName.startswith('!')
+                if linkName in self.constants:
+                    self.assembly[lineNumber] = re.sub(
+                        '(?<![\w_])%s(?![\w_])' % linkName, str(self.constants[linkName]),
+                        self.assembly[lineNumber])
+                elif linkName[absoluteLabel:] in self.labels:
+                    # Absolute labels, always assignable
+                    if absoluteLabel:
+                        self.assembly[lineNumber] = re.sub(
+                            '(?<![\w_])%s(?![\w_])' % linkName,
+                            str(self.labels[linkName[1:]]),
+                            self.assembly[lineNumber])
+                else:
+                    markLine = True
+            
+            
+            # Align and pad by a power of two using a provided byte
+            if line[0] == ".align":
+                if line[1].isdigit():
+                    alignPower = 2**int(line[1])
+                    padAmount = (currentProgress % alignPower)
+                    padAmount = -(padAmount-alignPower) if padAmount else 0
+                    currentProgress += padAmount
+                else:
+                    print(ERRORS[3].format(lineNumber))
             
             # Inline bytes
             elif line[0] == '.byte':
@@ -272,35 +320,158 @@ class Assembler:
             elif line[0] == '.word':
                 currentProgress += 4
             
-            # last resort
-            elif self.verbose:
-                print(categorizedLine,line)
-                print(ERRORS[8].format(lineNumber))
-                delList.append(lineNumber)
+            newLine = [line[0]]
+            
+            # Find links and replace them with zero
+            for operand in line[1:]:
+                newLine.append(re.sub('[!]*<link_[a-z]{1}[\w_]*/>','0',operand))
+                            
+            
+            # Categorize operands for easy identification
+            categorizedLine = self.categorizeOperands(newLine)
+            
+            # Find untainted Links and replace them
+            linkList = set(re.findall('[!]*<link_[a-z]{1}[\w_]*/>',self.assembly[lineNumber]))
+            for linkName in linkList:
+                absoluteLabel = linkName.startswith('!')
+                if linkName[absoluteLabel:] in self.labels:
+                    # Can't assign relative labels if pass tainted
+                    if pass_tainted:
+                        markLine = True
+                    # N/PC-relative labels
+                    else:
+                        # Check whether it's an instruction we're making a
+                        # relative label for and if architecture uses NPC
+                        instruction = self.instructions.get(
+                            categorizedLine, None)
+                        instLength = 0
+                        # It is an instruction and NPC, calculate length
+                        if instruction and self.jump_npc:
+                            instLength = self.formats[instruction[0]][0]//8
+                        self.assembly[lineNumber] = re.sub(
+                            '(?<![\w_])%s(?![\w_])' % linkName,
+                            str(self.labels[linkName]
+                            -(currentProgress+instLength)),
+                            self.assembly[lineNumber])
+            
+            # Instruction alignment, in case the current instruction is misaligned
+            if categorizedLine in self.instructions.keys():
+                if self.instAlign:
+                    alignPower = 2**int(self.instAlign)
+                    padAmount = (currentProgress % alignPower)
+                    padAmount = -(padAmount-alignPower) if padAmount else 0
+                    currentProgress += padAmount
+                currentProgress += self.formats[self.instructions[
+                    categorizedLine][0]][0]//8
+            
+            # Store line for third+ pass(es)
+            if markLine:
+                pass_tainted = True
+                self.markedLines[lineNumber] = self.assembly[lineNumber]
         
         for lineNumber in delList:
             del self.assembly[lineNumber]
     
     
-    def labelConstConvert(self,originalValue,line,memoryLength):
-        """Convert constants&labels to integers"""
-        if line[originalValue] in self.constants:
-            line[originalValue] = str(self.constants[line[originalValue]])
+    def linkPasses(self):
+        """
+        Link passes, tries to find empty links and assign them
+        """
+        asmDelList = []
+        while self.markedLines:
+            pass_tainted = False
+            watchdog_markedLength = len(self.markedLines)
+            delList = []
+            for lineNumber in self.markedLines.keys():
+                currentProgress = self.linePos[lineNumber]
+                line = self.cleanLine(self.assembly[lineNumber])
+                markLine = 0
+                
+                # Label assignment
+                if line[0][-1] == ":":
+                    labelName = line[0][:-1]
+                    if self.labels.get(labelName,None) != None:
+                        print(ERRORS[6].format(lineNumber,labelName))
+                    else:
+                        self.labels[labelName] = currentProgress
+                    asmDelList.append(lineNumber)
+                
+                # Constant assignment
+                elif line[0] == '.const':
+                    if self.constants.get(line[1],None) != None:
+                        print(ERRORS[7].format(lineNumber,line[1]))
+                    elif re.search('[\-]*\d+',line[2]):
+                        self.constants[line[1]] = int(line[2])
+                    else:
+                        markLine = True
+                    asmDelList.append(lineNumber)
+                
+                # Replace constants, absolute labels, and mark empty links
+                linkList = set(re.findall('[!]*<link_[a-z]{1}[\w_]*/>',self.assembly[lineNumber]))
+                for linkName in linkList:
+                    absoluteLabel = linkName.startswith('!')
+                    if linkName in self.constants:
+                        self.assembly[lineNumber] = re.sub(
+                            '(?<![\w_])%s(?![\w_])' % linkName, str(self.constants[linkName]),
+                            self.assembly[lineNumber])
+                    elif linkName[absoluteLabel:] in self.labels:
+                        # Absolute labels, always assignable
+                        if absoluteLabel:
+                            self.assembly[lineNumber] = re.sub(
+                                '(?<![\w_])%s(?![\w_])' % linkName,
+                                str(self.labels[linkName[1:]]),
+                                self.assembly[lineNumber])
+                    else:
+                        markLine = True
+                
+                newLine = [line[0]]
+                
+                # Find links and replace them with zero
+                for operand in line[1:]:
+                    newLine.append(re.sub('[!]*<link_[a-z]{1}[\w_]*/>','0',operand))
+                
+                # Categorize operands for easy identification
+                categorizedLine = self.categorizeOperands(newLine)
+                
+                # Find untainted Links and replace them
+                linkList = set(re.findall('[!]*<link_[a-z]{1}[\w_]*/>',self.assembly[lineNumber]))
+                for linkName in linkList:
+                    absoluteLabel = linkName.startswith('!')
+                    if linkName[absoluteLabel:] in self.labels:
+                        # N/PC-relative labels
+                        # Check whether it's an instruction we're making a
+                        # relative label for and if architecture uses NPC
+                        instruction = self.instructions.get(
+                            categorizedLine, None)
+                        instLength = 0
+                        # It is an instruction and NPC, calculate length
+                        if instruction and self.jump_npc:
+                            instLength = self.formats[instruction[0]][0]//8
+                        self.assembly[lineNumber] = re.sub(
+                            '(?<![\w_])%s(?![\w_])' % linkName,
+                            str(self.labels[linkName]
+                            -(currentProgress+instLength)),
+                            self.assembly[lineNumber])
+                
+                # Store line for further pass(es)
+                if markLine:
+                    pass_tainted = True
+                    self.markedLines[lineNumber] = self.assembly[lineNumber]
+                else:
+                    delList.append(lineNumber)
+            
+            for lineNumber in set(delList):
+                del self.markedLines[lineNumber]
+            
+            if watchdog_markedLength == len(self.markedLines):
+                print(ERROR_FATAL[1])
+                for lineNumber in self.markedLines.keys():
+                    print(self.markedLines[lineNumber])
+                print(self.labels)
+                quit(101)
         
-        elif line[originalValue] in self.labels:
-            # NPC-relative labels
-            if line[0] in self.jump_rel:
-                instLength = self.formats[self.instructions[line[0]][0]][0]//8
-                line[originalValue] = str(
-                    self.labels[line[originalValue]]
-                    -(memoryLength+instLength*self.jump_abs*self.jump_npc))
-            # Absolute labels
-            elif line[0] in self.jump_abs:
-                line[originalValue] = str(self.labels[line[originalValue]])
-            # PC-relative labels, as the default
-            else:
-                line[originalValue] = str(self.labels[line[originalValue]]
-                    -memoryLength)
+        for lineNumber in set(asmDelList):
+            del self.assembly[lineNumber]
     
     
     def categorizeOperands(self,line):
@@ -311,7 +482,7 @@ class Assembler:
                 categorizedLine.append('COND')
             elif operand in self.registers.keys():
                 categorizedLine.append('REG')
-            elif operand[0].isdigit():
+            elif re.search('<link_[a-z]{1}[\w_]*/>|[\-]*\d+',operand):
                 categorizedLine.append('NUM')
             else:
                 categorizedLine.append('_'+operand)
@@ -321,18 +492,9 @@ class Assembler:
     def assemble(self):
         machine_code = []
         for lineNumber in self.assembly.keys():
+            print(self.assembly[lineNumber])
             line = self.cleanLine(self.assembly[lineNumber])
             memoryLength = len(machine_code)
-            
-            # Label assignment
-            if line[0][-1] == ":":
-                labelName = line[0][:-1]
-                self.labels[labelName] = memoryLength
-                continue
-            
-            # Convert constants&labels into integers
-            for originalValue in range(1,len(line)):
-                self.labelConstConvert(originalValue,line,memoryLength)
             
             # Categorize operands for easy identification
             categorizedLine = self.categorizeOperands(line)
@@ -355,13 +517,6 @@ class Assembler:
                     padAmount = -(padAmount-alignPower) if padAmount else 0
                     machine_code.extend([0]*padAmount)
             
-            # Constant assignment
-            elif line[0] == '.const':
-                try:
-                    self.constants[line[1]] = int(line[2])
-                except:
-                    print(ERRORS[3].format(lineNumber))
-            
             # Inline bytes
             elif line[0] == '.byte':
                 try:
@@ -370,7 +525,7 @@ class Assembler:
                     print(ERRORS[3].format(lineNumber))
             
             # Inline halfwords
-            elif line[0] == '.half':
+            elif line[0] == '.2byte':
                 try:
                     halfword = self.twoComp(int(line[1]), 16)
                 except:
@@ -381,7 +536,7 @@ class Assembler:
                         ][::[1,-1][self.big_endian]]])
             
             # Inline words
-            elif line[0] == '.word':
+            elif line[0] == '.4byte':
                 try:
                     word = self.twoComp(int(line[1]), 32)
                 except:
@@ -395,5 +550,6 @@ class Assembler:
                 machine_code.extend(self.formatEncode(categorizedLine,
                     line,lineNumber))
             else:
+                print(line,categorizedLine,self.assembly[lineNumber])
                 print('Something went wrong. :(')
         return machine_code
