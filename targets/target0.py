@@ -84,7 +84,7 @@ INSTRUCTIONS = {
     ('nop',):  ('1b',('size',0),('opcode',0b0000),('function',0b000)),
     ('ret',):  ('1b',('size',0),('opcode',0b0000),('function',0b100)),
     ('lpc',):  ('1b',('size',0),('opcode',0b0000),('function',0b010)),
-    ('lnpc',): ('1b',('size',0),('opcode',0b0000),('function',0b110)),
+    ('lnpc',): ('1b',('size',0),('opcode',0b0000),('function',0b010)),
     ('ecal',): ('1b',('size',0),('opcode',0b0000),('function',0b001)),
     ('eret',): ('1b',('size',0),('opcode',0b0000),('function',0b011)),
     ('halt',): ('1b',('size',0),('opcode',0b0000),('function',0b111)),

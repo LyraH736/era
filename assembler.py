@@ -1,4 +1,5 @@
 import re
+import numexpr
 
 ERRORS = {
     0:  "ERROR, line {}: less arguments than required {}, using default 0",
@@ -189,7 +190,7 @@ class Assembler:
     def cleanLine(self,line):
         """cleans the line and prepares it for easier reading"""
         return re.findall(
-            '(?<![\w~%^&*()\-+<>/_!])[!]*<link_[a-z]{1}[\w_]*/>[:]*(?![\w~%^&*()\-+<>/_!])|(?<![<])[.]*[\d]*[-]*[\w]{1}[^,\s]*|(?<=[\s,])[!]*[\w()<]{1}[\w~%^&*()\-+<>/]*(?=[\s,])',
+            '(?<![\w~%^&*()\-+<>/_!])[!]*<link_[a-z]{1}[\w_]*/>[:]*(?![\w~%^&*()\-+<>/_!])|(?<![<])[.]*[\d]*[-]*[\w]{1}[^,\s]*|(?<=[\s,])[!]*[\w()<]{1}[\w~%^&*()\-+<>/]*(?![\w])',
             line)
     
     
@@ -263,10 +264,6 @@ class Assembler:
                 else:
                     self.labels[labelName] = currentProgress
                     delList.append(lineNumber)
-                print(currentProgress)
-            
-            if line[0] == 'b.ne':
-                print(currentProgress)
             
             # Constant assignment
             elif line[0] == '.const':
@@ -274,7 +271,7 @@ class Assembler:
                     delList.append(lineNumber)
                     print(ERRORS[7].format(lineNumber,line[1]))
                 elif re.search('[\-]*\d+',line[2]):
-                    self.constants[line[1]] = int(line[2])
+                    self.constants[line[1]] = numexpr.evaluate(line[2]).item()
                     delList.append(lineNumber)
                 else:
                     markLine = True
@@ -324,7 +321,10 @@ class Assembler:
             
             # Find links and replace them with zero
             for operand in line[1:]:
-                newLine.append(re.sub('[!]*<link_[a-z]{1}[\w_]*/>','0',operand))
+                if re.search('[<>/~%^&*()-+]',operand):
+                    newLine.append(str(numexpr.evaluate(re.sub('[!]*<link_[a-z]{1}[\w_]*/>','0',operand)).item()))
+                else:
+                    newLine.append(operand)
                             
             
             # Categorize operands for easy identification
@@ -353,6 +353,16 @@ class Assembler:
                             str(self.labels[linkName]
                             -(currentProgress+instLength)),
                             self.assembly[lineNumber])
+            
+            line = self.cleanLine(self.assembly[lineNumber])
+            
+            # Find unmarked operands and attempt to evaluate them
+            if not markLine and lineNumber not in delList:
+                for operand in line[1:]:
+                    if re.search('[<>/~%^&*()-+]',operand):
+                        self.assembly[lineNumber] = re.sub(
+                            '(?<![\w<>?/~!%%^&*()\-+])%s(?![\w<>?/~!%%^&*()\-+])' % re.escape(operand),
+                            str(numexpr.evaluate(operand).item()),self.assembly[lineNumber])
             
             # Instruction alignment, in case the current instruction is misaligned
             if categorizedLine in self.instructions.keys():
@@ -401,7 +411,7 @@ class Assembler:
                     if self.constants.get(line[1],None) != None:
                         print(ERRORS[7].format(lineNumber,line[1]))
                     elif re.search('[\-]*\d+',line[2]):
-                        self.constants[line[1]] = int(line[2])
+                        self.constants[line[1]] = numexpr.evaluate(line[2]).item()
                     else:
                         markLine = True
                     asmDelList.append(lineNumber)
@@ -428,7 +438,7 @@ class Assembler:
                 
                 # Find links and replace them with zero
                 for operand in line[1:]:
-                    newLine.append(re.sub('[!]*<link_[a-z]{1}[\w_]*/>','0',operand))
+                    newLine.append(str(numexpr.evaluate(re.sub('[!]*<link_[a-z]{1}[\w_]*/>','0',operand)).item()))
                 
                 # Categorize operands for easy identification
                 categorizedLine = self.categorizeOperands(newLine)
@@ -452,6 +462,16 @@ class Assembler:
                             str(self.labels[linkName]
                             -(currentProgress+instLength)),
                             self.assembly[lineNumber])
+                
+                line = self.cleanLine(self.assembly[lineNumber])
+                
+                # Find unmarked operands and attempt to evaluate them
+                if not markLine and lineNumber not in delList:
+                    for operand in line[1:]:
+                        if re.search('[<>/~%^&*()-+]',operand):
+                            self.assembly[lineNumber] = re.sub(
+                                '(?<![\w<>?/~!%%^&*()\-+])%s(?![\w<>?/~!%%^&*()\-+])' % re.escape(operand),
+                                str(numexpr.evaluate(operand).item()),self.assembly[lineNumber])
                 
                 # Store line for further pass(es)
                 if markLine:
@@ -492,7 +512,6 @@ class Assembler:
     def assemble(self):
         machine_code = []
         for lineNumber in self.assembly.keys():
-            print(self.assembly[lineNumber])
             line = self.cleanLine(self.assembly[lineNumber])
             memoryLength = len(machine_code)
             
