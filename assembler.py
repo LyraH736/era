@@ -438,7 +438,10 @@ class Assembler:
                 
                 # Find links and replace them with zero
                 for operand in line[1:]:
-                    newLine.append(str(numexpr.evaluate(re.sub('[!]*<link_[a-z]{1}[\w_]*/>','0',operand)).item()))
+                    if re.search('[<>/~%^&*()-+]',operand):
+                        newLine.append(str(numexpr.evaluate(re.sub('[!]*<link_[a-z]{1}[\w_]*/>','0',operand)).item()))
+                    else:
+                        newLine.append(operand)
                 
                 # Categorize operands for easy identification
                 categorizedLine = self.categorizeOperands(newLine)
