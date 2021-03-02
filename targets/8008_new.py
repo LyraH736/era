@@ -15,6 +15,7 @@ REGISTERS = {
     'e':    4,
     'h':    5,
     'l':    6,
+    'm':    7,
     }
 
 FORMATS = {
@@ -97,28 +98,20 @@ INSTRUCTIONS = {
     ('rst','NUM'):  ('1b3',('function',0b00),   ('opcode',0b101),   ('imm','NUM')),
     # Load
     ('mov','REG','REG'):    ('1b4',('function',0b11),('dest','REG'),        ('source','REG')),
-    ('mov','REG','_m'):     ('1b4',('function',0b11),('source',0b111),      ('dest','REG',True)),
-    ('mov','_m','REG'):     ('1b4',('function',0b11),('dest',0b111,True),   ('source','REG')),
     ('mvi','REG','NUM'):    ('2b1',('opcode',0b110),('function',0b00),  ('dest','REG'),     ('imm','NUM')),
-    ('mvi','_m','NUM'):     ('2b1',('opcode',0b110),('function',0b00),  ('dest',0b111,True),('imm','NUM')),
     # arithmetic
     ('adi','NUM'):  ('2b0',('opcode',0b00000100),   ('imm','NUM')),
     ('aci','NUM'):  ('2b0',('opcode',0b00001100),   ('imm','NUM')),
     ('sui','NUM'):  ('2b0',('opcode',0b00010100),   ('imm','NUM')),
+    ('sbi','NUM'):  ('2b0',('opcode',0b00011100),   ('imm','NUM')),
     ('ani','NUM'):  ('2b0',('opcode',0b00100100),   ('imm','NUM')),
     ('xri','NUM'):  ('2b0',('opcode',0b00101100),   ('imm','NUM')),
     ('ori','NUM'):  ('2b0',('opcode',0b00110100),   ('imm','NUM')),
     ('cpi','NUM'):  ('2b0',('opcode',0b00111100),   ('imm','NUM')),
-    ('add','_m'):   ('1b4',('function',0b10),   ('dest',0b000), ('source',0b111)),
-    ('adc','_m'):   ('1b4',('function',0b10),   ('dest',0b001), ('source',0b111)),
-    ('sub','_m'):   ('1b4',('function',0b10),   ('dest',0b010), ('source',0b111)),
-    ('ana','_m'):   ('1b4',('function',0b10),   ('dest',0b100), ('source',0b111)),
-    ('xra','_m'):   ('1b4',('function',0b10),   ('dest',0b101), ('source',0b111)),
-    ('ora','_m'):   ('1b4',('function',0b10),   ('dest',0b110), ('source',0b111)),
-    ('cmp','_m'):   ('1b4',('function',0b10),   ('dest',0b111), ('source',0b111)),
     ('add','REG'):  ('1b4',('function',0b10),   ('dest',0b000), ('source','REG')),
     ('adc','REG'):  ('1b4',('function',0b10),   ('dest',0b001), ('source','REG')),
     ('sub','REG'):  ('1b4',('function',0b10),   ('dest',0b010), ('source','REG')),
+    ('sbb','REG'):  ('1b4',('function',0b10),   ('dest',0b011), ('source','REG')),
     ('ana','REG'):  ('1b4',('function',0b10),   ('dest',0b100), ('source','REG')),
     ('xra','REG'):  ('1b4',('function',0b10),   ('dest',0b101), ('source','REG')),
     ('ora','REG'):  ('1b4',('function',0b10),   ('dest',0b110), ('source','REG')),
