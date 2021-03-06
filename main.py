@@ -13,6 +13,9 @@ def main():
     parser.add_argument('-v','--verbose',help='Verbose output',
         action='store_true')
     args = parser.parse_args()
+    if len(sys.argv) <= 2:
+        parser.print_help()
+        quit(404)
     
     # Set targets path and import set target or default(MIPS I)
     sys.path.append('./targets')
@@ -42,6 +45,8 @@ def main():
     outname = args.output if args.output else 'a.out'
     with open(outname,'wb') as outfile:
         outfile.write(memoryArray)
+    
+    quit(0)
 
 
 if __name__ == '__main__':

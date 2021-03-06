@@ -1,11 +1,7 @@
 # 8008 with the new mnemonics
-ISA_FEATURES = ('LITTLE','FORBID','REGS','JUMP_NPC')
+ISA_FEATURES = ('LITTLE','REGS','JUMP_NPC')
 INSTRUCTION_ALIGNMENT = 0
 PAD_BYTE = 0x00 # Prefered Byte to pad with
-
-FORBID = (
-    'm',
-    )
 
 REGISTERS = {
     'a':    0,

@@ -36,9 +36,8 @@ class Assembler:
         self.forbid = ()
         self.registers = {}
         self.conditions = {}
-        self.jump_rel = ()
-        self.jump_abs = ()
         self.jump_npc = False
+        self.post_shift = {}
         # Import optional overrides
         if "BIG" in target.ISA_FEATURES:
             self.big_endian = 1
@@ -50,6 +49,8 @@ class Assembler:
             self.conditions = target.CONDITIONS
         if "JUMP_NPC" in target.ISA_FEATURES:
             self.jump_npc = True
+        if "POST_SHIFT" in target.ISA_FEATURES:
+            self.post_shift = target.POST_SHIFT
             
         
         # Initialize variables
@@ -97,7 +98,7 @@ class Assembler:
         return cleaned
     
     # Converts an instruction format into an instruction, recursive.
-    def instFormatter(self, bitsLeft, inFormat, instruction):
+    def instFormatter(self, bitsLeft, inFormat, instruction=0):
         """Formatter for instructions"""
         # Pop the field
         currentValue = inFormat.pop(0)
@@ -116,6 +117,7 @@ class Assembler:
         current_instruction = self.instructions[categorizedLine]
         current_format = self.formats[current_instruction[0]]
         current_element = 1
+        instruction_length = current_format[0]
         max_elements = len(line)
         
         instruction_fields = {}
@@ -152,10 +154,11 @@ class Assembler:
                 if re.search('[\-]*\d+',line[current_element]):
                     selectedValue = int(line[current_element])
                     # Shift the inputs if needed
-                    if inputType.endswith('r'):
-                        selectedValue = selectedValue >> instField[2]
+                    shiftAmount = self.listGet(instField,2)
+                    if shiftAmount >= 0:
+                        selectedValue = selectedValue >> shiftAmount
                     else:
-                        selectedValue = selectedValue << self.listGet(instField,2)
+                        selectedValue = selectedValue << -shiftAmount
                     current_element += 1
                 else:
                     print(ERRORS[3].format(lineNumber))
@@ -180,11 +183,29 @@ class Assembler:
                 print(ERRORS[5].format(lineNumber))
                 return []
         
-        instruction = self.instFormatter(current_format[0],format_fields,0)
+        instruction = self.instFormatter(instruction_length,format_fields)
         
+        # Post base-encoding shifting
+        if current_instruction[0] in self.post_shift:
+            instruction_length = self.post_shift[current_instruction[0]]
+            shiftedInstruction = 0
+            
+            # Gradually shifts each field in the instruction and ORs it
+            # the final instruction
+            for shiftField in self.post_shift[current_instruction[0]][1:]:
+                andOriginal = instruction & shiftField[0]
+                shiftAmount = self.listGet(shiftField,1)
+                shiftDirection = shiftAmount >= 0 # 1 = right, 0 = left
+                shiftedInstruction = (shiftedInstruction
+                    |(andOriginal >> shiftAmount if shiftDirection else andOriginal >> shiftAmount))
+            
+            instruction = shiftedInstruction
+        
+        # Returns the instruction in the form of bytes, reverses order
+        # if target is little endian
         return [byte & 255 for byte in [
             instruction >> (8*x) for x in range(
-            current_format[0]//8)][::[1,-1][self.big_endian]]]
+            instruction_length//8)][::[1,-1][self.big_endian]]]
         
     
     def cleanLine(self,line):
