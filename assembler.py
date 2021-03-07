@@ -392,8 +392,10 @@ class Assembler:
                     padAmount = (currentProgress % alignPower)
                     padAmount = -(padAmount-alignPower) if padAmount else 0
                     currentProgress += padAmount
-                currentProgress += self.formats[self.instructions[
-                    categorizedLine][0]][0]//8
+                currentFormat = self.instructions[categorizedLine][0]
+                currentProgress += [self.formats[currentFormat],
+                    self.post_shift.get(currentFormat)][
+                        currentFormat in self.post_shift][0]//8
             
             # Store line for third+ pass(es)
             if markLine:
